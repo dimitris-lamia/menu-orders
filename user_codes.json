@@ -1,0 +1,18 @@
+[
+  {
+    "code": "admin",
+    "role": "admin"
+  },
+  {
+    "code": "waiter",
+    "role": "waiter"
+  },
+  {
+    "code": "kitchen",
+    "role": "kitchen"
+  },
+  {
+    "code": "1234",
+    "role": "admin"
+  }
+]

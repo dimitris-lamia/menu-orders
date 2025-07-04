@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Editor</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .section-header h2 { margin: 0; color: #555; }
+        input[type="text"], input[type="number"] { width: calc(100% - 100px); padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .delete-btn { background: #dc3545; margin-left: 10px; }
+        .delete-btn:hover { background: #c82333; }
+        .category-block { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+        .item-block { margin-left: 20px; margin-top: 10px; padding-left: 10px; border-left: 2px solid #eee; }
+        .ingredient-tag { display: inline-block; background: #e9ecef; padding: 5px 10px; border-radius: 3px; margin-right: 5px; margin-bottom: 5px; }
+        .save-btn { display: block; width: 100%; padding: 10px; background: #28a745; margin-top: 30px; font-size: 1.1em; }
+        .save-btn:hover { background: #218838; }
+        #message { text-align: center; margin-top: 20px; font-weight: bold; color: green; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Menu Editor</h1>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Add New Category</h2>
+            </div>
+            <input type="text" id="newCategoryName" placeholder="Category Name">
+            <button onclick="addCategory()">Add Category</button>
+        </div>
+
+        <div id="menuContent">
+            <!-- Menu categories, items, and ingredients will be rendered here by JavaScript -->
+        </div>
+
+
+        <div class="section">
+            <div class="section-header">
+                <h2>User Codes Management</h2>
+            </div>
+            <div id="userCodesList"></div>
+            <form id="addUserCodeForm" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="text" id="newUserCode" placeholder="Code (e.g. admin123)" style="width:160px;">
+                <select id="newUserRole" style="padding:7px 10px;border-radius:4px;">
+                    <option value="admin">Admin</option>
+                    <option value="waiter">Waiter</option>
+                    <option value="kitchen">Kitchen</option>
+                </select>
+                <button type="submit">Add User Code</button>
+            </form>
+            <div id="userCodeMsg" style="color:#e74c3c;margin-top:8px;font-weight:bold;"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Excel Import/Export</h2>
+            </div>
+            <input type="file" id="importXLSXInput" accept=".xlsx,.xls" style="display:none;">
+            <button id="importXLSXBtn">Import XLSX</button>
+            <button id="exportXLSXBtn">Export XLSX</button>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Table Count</h2>
+            </div>
+            <input type="number" id="tableCountInput" min="1" max="200" style="width:100px;" placeholder="Number of tables">
+            <button onclick="updateTableCount()">Set Table Count</button>
+        </div>
+
+        <button class="save-btn" onclick="saveMenu()">Save Menu</button>
+        <div id="message"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="admin.js"></script>
+    <script>
+    // --- User Codes Management (Backend) ---
+    async function fetchUserCodes() {
+        const res = await fetch('/user-codes');
+        if (!res.ok) return [];
+        return await res.json();
+    }
+    async function renderUserCodes() {
+        const listDiv = document.getElementById('userCodesList');
+        const codes = await fetchUserCodes();
+        if (codes.length === 0) {
+            listDiv.innerHTML = '<em>No user codes set.</em>';
+            return;
+        }
+        let html = '<table style="width:100%;margin-bottom:8px;"><tr><th style="text-align:left;">Code</th><th>Role</th><th></th></tr>';
+        codes.forEach((u, idx) => {
+            html += `<tr><td style='font-family:monospace;'>${u.code}</td><td>${u.role}</td><td><button onclick='deleteUserCode("${encodeURIComponent(u.code)}")' style='background:#e74c3c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;'>Delete</button></td></tr>`;
+        });
+        html += '</table>';
+        listDiv.innerHTML = html;
+    }
+    async function addUserCode(code, role) {
+        code = code.trim();
+        if (!code) return 'Code required';
+        try {
+            const res = await fetch('/user-codes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, role })
+            });
+            if (res.status === 409) return 'Code already exists';
+            if (!res.ok) return 'Error adding code';
+            await renderUserCodes();
+            return '';
+        } catch {
+            return 'Error adding code';
+        }
+    }
+    async function deleteUserCode(code) {
+        try {
+            const res = await fetch(`/user-codes/${encodeURIComponent(code)}`, { method: 'DELETE' });
+            if (!res.ok) return;
+            await renderUserCodes();
+        } catch {}
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        renderUserCodes();
+        document.getElementById('addUserCodeForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('newUserCode').value;
+            const role = document.getElementById('newUserRole').value;
+            const msgDiv = document.getElementById('userCodeMsg');
+            const err = await addUserCode(code, role);
+            if (err) {
+                msgDiv.textContent = err;
+            } else {
+                msgDiv.textContent = '';
+                this.reset();
+            }
+        };
+    });
+    window.deleteUserCode = deleteUserCode;
+    </script>
+</body>
+</html>

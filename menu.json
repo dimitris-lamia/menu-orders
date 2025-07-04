@@ -1,0 +1,110 @@
+{
+  "categories": [
+    {
+      "id": "cat1",
+      "name": "BURGER"
+    },
+    {
+      "id": "cat2",
+      "name": "PITA"
+    }
+  ],
+  "items": [
+    {
+      "id": "item1",
+      "categoryId": "cat1",
+      "name": "Cheeseburger",
+      "ingredients": [
+        "τσένταρ",
+        "μπιφτέκι",
+        "κέτσαπ",
+        "μουστάρδα",
+        "κρεμμύδι",
+        "σως πίκλα"
+      ]
+    },
+    {
+      "id": "item2",
+      "categoryId": "cat1",
+      "name": "Kid's Gheeseburger",
+      "ingredients": [
+        "τσένταρ",
+        "μπιφτέκι",
+        "κέτσαπ",
+        "μουστάρδα"
+      ]
+    },
+    {
+      "id": "item3",
+      "categoryId": "cat1",
+      "name": "Zorba Burger",
+      "ingredients": [
+        "τσένταρ",
+        "μπιφτέκι",
+        "μπέικον",
+        "μαρούλι",
+        "ντομάτα",
+        "κέτσαπ",
+        "μουστάρδα",
+        "μαγιονέζα"
+      ]
+    },
+    {
+      "id": "item4",
+      "categoryId": "cat2",
+      "name": "Γύρος Χορινός",
+      "ingredients": [
+        "κρεμμύδι",
+        "ντομάτα",
+        "πίτα",
+        "τζατζίκι",
+        "πατάτες"
+      ]
+    },
+    {
+      "id": "item5",
+      "categoryId": "cat2",
+      "name": "Γύρος Κοτόπουλο",
+      "ingredients": [
+        "κρεμμύδι",
+        "ντομάτα",
+        "πίτα",
+        "τζατζίκι",
+        "πατάτες"
+      ]
+    },
+    {
+      "id": "item6",
+      "categoryId": "cat2",
+      "name": "Σουβλάκι Χοιρινό",
+      "ingredients": [
+        "κρεμμύδι",
+        "ντομάτα",
+        "πίτα",
+        "τζατζίκι",
+        "πατάτες"
+      ]
+    },
+    {
+      "id": "item7",
+      "categoryId": "cat2",
+      "name": "Κεμπάπ",
+      "ingredients": []
+    }
+  ],
+  "addons": [
+    {
+      "id": "addon1",
+      "categoryId": "cat2",
+      "name": "Μερίδα"
+    },
+    {
+      "id": "addon2",
+      "categoryId": "cat2",
+      "name": "Πίτα"
+    }
+  ],
+  "ingredients": {
+    "[object Object]": {}
+  }
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Restaurant Order System</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #e0eafc; margin: 0; padding: 0; }
+        .container { max-width: 500px; margin: 40px auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(44,62,80,0.13); padding: 32px 24px; text-align: center; }
+        h1 { color: #2980b9; }
+        .info { margin: 18px 0; font-size: 1.1em; }
+        .address { font-size: 1.2em; color: #2193b0; font-weight: bold; }
+        .link-btn { display: inline-block; margin-top: 18px; padding: 14px 32px; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: #222; border: none; border-radius: 8px; font-size: 1.2em; font-weight: bold; text-decoration: none; box-shadow: 0 2px 8px #b3f7e0; }
+        .link-btn:hover { background: linear-gradient(135deg, #38f9d7 0%, #43e97b 100%); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome!</h1>
+        <div class="info">
+            Please enter your access code to continue:
+        </div>
+        <form id="loginForm" style="margin-top:18px;">
+            <input type="password" id="accessCode" placeholder="Enter code" style="font-size:1.2em;padding:10px 18px;border-radius:8px;border:2px solid #2980b9;width:70%;max-width:260px;">
+            <button type="submit" class="link-btn" style="margin-left:10px;">Login</button>
+        </form>
+        <div id="loginError" style="color:#e74c3c;margin-top:12px;display:none;font-weight:bold;"></div>
+        <div class="info" style="margin-top:32px;font-size:0.98em;color:#888;">
+            <b>Tip:</b> Use your staff code to access the correct page.<br>
+            (Admin, Waiter, and Kitchen staff have different codes.)
+        </div>
+    </div>
+    <script src="landing.js"></script>
+</body>
+</html>

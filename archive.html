@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archived Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #e0eafc; margin: 0; padding: 0; }
+        .container { max-width: 800px; margin: 40px auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(44,62,80,0.13); padding: 32px 24px; }
+        h1 { color: #2980b9; text-align: center; }
+        .date-block { margin-bottom: 32px; }
+        .date-title { font-size: 1.3em; color: #2193b0; margin-bottom: 10px; }
+        .order-block { background: #f9f9f9; border-radius: 8px; margin-bottom: 10px; padding: 12px 16px; box-shadow: 0 1px 4px #b3e0f7; }
+        .order-header { font-weight: bold; margin-bottom: 6px; }
+        .order-items { margin-left: 18px; }
+        .download-btn { margin: 18px 0; padding: 10px 24px; background: #43e97b; color: #222; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; }
+        .download-btn:hover { background: #38f9d7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Archived Orders</h1>
+        <button class="download-btn" onclick="downloadArchive()">Download All as JSON</button>
+        <button class="download-btn" style="background:#ffd200;color:#333;" onclick="downloadArchiveText()">Download All as Text</button>
+        <div id="archive"></div>
+    </div>
+    <script>
+    async function loadArchive() {
+        let data = {};
+        try {
+            const res = await fetch('/orders_archive.json');
+            data = await res.json();
+        } catch (e) {
+            document.getElementById('archive').innerHTML = '<em>No archive data found.</em>';
+            return;
+        }
+        const container = document.getElementById('archive');
+        container.innerHTML = '';
+        const dates = Object.keys(data).sort().reverse();
+        if (dates.length === 0) {
+            container.innerHTML = '<em>No archived orders.</em>';
+            return;
+        }
+        dates.forEach(date => {
+            const dateBlock = document.createElement('div');
+            dateBlock.className = 'date-block';
+            const dateTitle = document.createElement('div');
+            dateTitle.className = 'date-title';
+            dateTitle.textContent = date;
+            dateBlock.appendChild(dateTitle);
+            data[date].forEach(order => {
+                const orderDiv = document.createElement('div');
+                orderDiv.className = 'order-block';
+                const d = new Date(order.time);
+                orderDiv.innerHTML = `<div class='order-header'>Table: <b>${order.customer}</b> | Time: ${d.toLocaleString()}</div>`;
+                const itemsDiv = document.createElement('div');
+                itemsDiv.className = 'order-items';
+                order.items.forEach(item => {
+                    itemsDiv.innerHTML += `<div>${item.quantity} x ${item.item}` + (item.ingredients && item.ingredients.length ? ` <span style='color:#888'>(with ${item.ingredients.join(', ')})</span>` : '') + `</div>`;
+                });
+                orderDiv.appendChild(itemsDiv);
+                dateBlock.appendChild(orderDiv);
+            });
+            container.appendChild(dateBlock);
+        });
+    }
+    function downloadArchive() {
+        fetch('/orders_archive.json').then(r=>r.blob()).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'orders_archive.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            clearArchive(); // Clear after download
+        });
+    }
+    function downloadArchiveText() {
+        fetch('/orders_archive.json').then(r=>r.json()).then(data => {
+            let text = '';
+            const dates = Object.keys(data).sort().reverse();
+            if (dates.length === 0) {
+                text = 'No archived orders.';
+            } else {
+                dates.forEach(date => {
+                    text += `=== ${date} ===\n`;
+                    data[date].forEach(order => {
+                        const d = new Date(order.time);
+                        text += `Table: ${order.customer} | Time: ${d.toLocaleString()}\n`;
+                        order.items.forEach(item => {
+                            text += `  ${item.quantity} x ${item.item}`;
+                            if (item.ingredients && item.ingredients.length) {
+                                text += ` (with ${item.ingredients.join(', ')})`;
+                            }
+                            text += '\n';
+                        });
+                        text += '\n';
+                    });
+                });
+            }
+            const blob = new Blob([text], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'orders_archive.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            clearArchive(); // Clear after download
+        });
+    }
+    function clearArchive() {
+        fetch('/clear_orders_archive', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    loadArchive();
+                } else {
+                    alert('Failed to clear archive.');
+                }
+            })
+            .catch(() => alert('Failed to clear archive.'));
+    }
+    loadArchive();
+    </script>
+</body>
+</html>

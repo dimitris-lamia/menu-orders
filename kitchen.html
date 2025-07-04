@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen - Tables & Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f8f8; margin: 0; padding: 0; }
+        .container { max-width: 900px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        .tables { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .table-icon { width: 50px; height: 50px; background: #e1e1e1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.1em; font-weight: bold; color: #333; position: relative; border: 3px solid #e1e1e1; transition: border 0.2s, background 0.2s; cursor: pointer; user-select: none; }
+        .table-icon.active { border: 3px solid #27ae60; background: #d4f5e9; }
+        .table-icon.blink { animation: blink 1s steps(1) infinite; }
+        @keyframes blink { 50% { background: #ffe066; border-color: #f39c12; } }
+        .table-orders { margin-bottom: 15px; }
+        .order-item { background: #f1f1f1; margin-bottom: 5px; padding: 7px; border-radius: 4px; font-size: 0.95em; }
+        .close-btn { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; margin-bottom: 10px; cursor: pointer; font-size: 1em; }
+        .close-btn:hover { background: #c0392b; }
+        .clear-table-btn { background: #f39c12; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; margin-bottom: 10px; margin-left: 10px; cursor: pointer; font-size: 1em; }
+        .clear-table-btn:hover { background: #ba660f; }
+        @media (max-width: 600px) { .container { max-width: 98vw; padding: 10px; } .tables { gap: 5px; } .table-icon { width: 44px; height: 44px; font-size: 0.9em; } }
+
+        .order-modal-bg {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        .order-modal-bg.active { display: flex !important; }
+        .order-modal-content {
+            background: #fff;
+            padding: 32px 24px;
+            border-radius: 16px;
+            max-width: 400px;
+            width: 90vw;
+            box-shadow: 0 4px 24px #0002;
+            position: relative;
+        }
+        .order-modal-close {
+            position: absolute;
+            top: 12px; right: 16px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            font-size: 1.3em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align:center;">ZORBA Restaurant</h2>
+        <div style="display:flex;justify-content:center;gap:16px;margin-bottom:18px;">
+                   </div>
+        <div class="orders" id="tableViewSection">
+            <h2>Tables</h2>
+            <div class="tables" id="tables"></div>
+            <h2>Orders</h2>
+            <div id="ordersList"></div>
+        </div>
+    </div>
+    <audio id="orderSound" src="c:\cr\beep.wav" preload="auto"></audio>
+    <!-- Order Details Modal -->
+    <div id="orderModal" class="order-modal-bg">
+        <div class="order-modal-content">
+            <button id="closeOrderModal" class="order-modal-close">×</button>
+            <div id="orderModalContent"></div>
+        </div>
+    </div>
+    <script src="modal.js"></script>
+    <script>
+    const SERVER_URL = `${window.location.protocol}//${window.location.host}`;
+    let allOrders = [];
+    let lastSeenOrderTime = {};
+    let focusedTable = null;
+    let TABLE_COUNT = 40; // Default fallback
+    let menuConfig = {};
+
+    async function loadMenuConfig() {
+        const res = await fetch('menu.json');
+        menuConfig = await res.json();
+        TABLE_COUNT = menuConfig.tableCount || 40;
+    }
+
+    // --- Table and order display ---
+    function groupOrdersByTable(orders) {
+        const grouped = {};
+        orders.forEach(order => {
+            const table = String(order.customer);
+            if (!grouped[table]) grouped[table] = [];
+            grouped[table].push(order);
+        });
+        return grouped;
+    }
+    function getTablePriorityMap(orders) {
+        let tableFirstOrderTimes = {};
+        orders.forEach(order => {
+            const table = String(order.customer);
+            if (!tableFirstOrderTimes[table] || order.time < tableFirstOrderTimes[table]) {
+                tableFirstOrderTimes[table] = order.time;
+            }
+        });
+        let sortedTables = Object.entries(tableFirstOrderTimes)
+            .sort((a, b) => a[1] - b[1])
+            .map(([table, _]) => table);
+        let tablePriorityMap = {};
+        sortedTables.forEach((table, idx) => {
+            tablePriorityMap[table] = idx + 1;
+        });
+        return tablePriorityMap;
+    }
+    function renderTables(grouped, tablePriorityMap) {
+        const tablesDiv = document.getElementById('tables');
+        tablesDiv.innerHTML = '';
+        // Get tables with orders, sorted by priority
+        const tablesWithPriority = Object.entries(tablePriorityMap)
+            .sort((a, b) => a[1] - b[1])
+            .map(([tableNum]) => tableNum);
+        // Render tables with orders, in priority order
+        tablesWithPriority.forEach(tableNum => {
+            const hasOrders = grouped[tableNum] && grouped[tableNum].length > 0;
+            let blink = false;
+            if (hasOrders) {
+                const latestOrder = grouped[tableNum][grouped[tableNum].length-1];
+                if (!lastSeenOrderTime[tableNum] || latestOrder.time > lastSeenOrderTime[tableNum]) {
+                    blink = true;
+                }
+            }
+            const icon = document.createElement('div');
+            icon.className = 'table-icon' + (hasOrders ? ' active' : '') + (blink ? ' blink' : '');
+            let priority = tablePriorityMap[tableNum] ? `<span style="font-size:0.9em;color:#2980b9;">#${tablePriorityMap[tableNum]}</span>` : '';
+            icon.innerHTML = `<span>${tableNum}</span>${priority}`;
+            icon.title = `Table ${tableNum}` + (priority ? ` (Priority #${tablePriorityMap[tableNum]})` : '');
+            icon.onclick = () => {
+                openTableOrders(tableNum, grouped, tablePriorityMap);
+                if (grouped[tableNum] && grouped[tableNum].length > 0) {
+                    showOrderModal({
+                        customer: tableNum,
+                        time: grouped[tableNum][grouped[tableNum].length-1].time,
+                        items: grouped[tableNum].flatMap(order => order.items)
+                    });
+                }
+            };
+            tablesDiv.appendChild(icon);
+        });
+        // Render tables without orders, in normal order
+        for (let i = 1; i <= TABLE_COUNT; i++) {
+            const tableNum = String(i);
+            if (!tablePriorityMap[tableNum]) {
+                const icon = document.createElement('div');
+                icon.className = 'table-icon';
+                icon.innerHTML = `<span>${tableNum}</span>`;
+                icon.title = `Table ${tableNum}`;
+                icon.onclick = () => openTableOrders(tableNum, grouped, tablePriorityMap);
+                tablesDiv.appendChild(icon);
+            }
+        }
+    }
+    function renderOrders(grouped, tablePriorityMap) {
+        const ordersList = document.getElementById('ordersList');
+        ordersList.innerHTML = '';
+        if (focusedTable) {
+            const tableOrders = grouped[focusedTable] || [];
+            const btnDiv = document.createElement('div');
+            btnDiv.style.display = 'flex';
+            btnDiv.style.gap = '10px';
+            btnDiv.style.marginBottom = '10px';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'close-btn';
+            closeBtn.textContent = 'Close Table ' + focusedTable;
+            closeBtn.onclick = () => { focusedTable = null; renderOrders(grouped, tablePriorityMap); };
+            btnDiv.appendChild(closeBtn);
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'clear-table-btn';
+            clearBtn.textContent = 'Clear Table';
+            clearBtn.onclick = async () => {
+                if (confirm('Clear all orders for table ' + focusedTable + '?')) {
+                    await fetch(`${SERVER_URL}/orders/table/${focusedTable}`, { method: 'DELETE' });
+                    focusedTable = null;
+                    fetchOrders();
+                }
+            };
+            btnDiv.appendChild(clearBtn);
+            ordersList.appendChild(btnDiv);
+            const div = document.createElement('div');
+            div.className = 'table-orders';
+            div.innerHTML = `<strong>Table ${focusedTable} <span style='color:#2980b9;font-size:0.95em;'>#${tablePriorityMap[focusedTable]||''}</span></strong>`;
+            tableOrders.forEach(order => {
+                order.items.forEach(item => {
+                    let ingHtml = '';
+                    if (item.defaultIngredients && item.defaultIngredients.length)
+                        ingHtml += item.defaultIngredients.join(', ');
+                    if (item.extraIngredients && item.extraIngredients.length)
+                        ingHtml += (ingHtml ? ' ' : '') + `<span style='color:#b07d00 !important;font-weight:bold !important;'>Extra:</span> <span style='color:#b07d00 !important;'>${item.extraIngredients.join(', ')}</span>`;
+                    if ((!item.defaultIngredients || !item.defaultIngredients.length) && (!item.extraIngredients || !item.extraIngredients.length) && item.ingredients && item.ingredients.length)
+                        ingHtml += item.ingredients.join(', ');
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'order-item';
+                    itemDiv.innerHTML = `${item.quantity} x ${item.item}` + (ingHtml ? ` <span>(${ingHtml})</span>` : '');
+                    // Add click event to show modal
+                    itemDiv.style.cursor = 'pointer';
+                    itemDiv.onclick = () => showOrderModal(order);
+                    div.appendChild(itemDiv);
+                });
+            });
+            if (tableOrders.length === 0) {
+                div.innerHTML += '<div class="order-item"><em>No orders for this table.</em></div>';
+            }
+            ordersList.appendChild(div);
+        } else {
+            // Show all tables with orders
+            let anyOrders = false;
+            // Collect all orders with their priority
+            let allOrderEntries = [];
+            for (let i = 1; i <= TABLE_COUNT; i++) {
+                const tableNum = String(i);
+                const tableOrders = grouped[tableNum] || [];
+                if (tableOrders.length > 0) {
+                    tableOrders.forEach(order => {
+                        allOrderEntries.push({
+                            tableNum,
+                            priority: tablePriorityMap[tableNum] || 0,
+                            order
+                        });
+                    });
+                }
+            }
+            // Sort by priority (ascending)
+            allOrderEntries.sort((a, b) => a.priority - b.priority);
+            if (allOrderEntries.length > 0) {
+                anyOrders = true;
+                allOrderEntries.forEach(entry => {
+                    const { tableNum, priority, order } = entry;
+                    order.items.forEach(item => {
+                        let ingHtml = '';
+                        if (item.defaultIngredients && item.defaultIngredients.length)
+                            ingHtml += item.defaultIngredients.join(', ');
+                        if (item.extraIngredients && item.extraIngredients.length)
+                            ingHtml += (ingHtml ? ' ' : '') + `<span style='color:#b07d00;font-weight:bold;'>Extra:</span> <span style='color:#b07d00;'>${item.extraIngredients.join(', ')}</span>`;
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'order-item';
+                        itemDiv.innerHTML = `<strong>Table ${tableNum} <span style='color:#2980b9;font-size:0.95em;'>#${priority}</span></strong>: ${item.quantity} x ${item.item}` + (ingHtml ? ` <span>(${ingHtml})</span>` : '');
+                        itemDiv.style.cursor = 'pointer';
+                        itemDiv.onclick = () => showOrderModal(order);
+                        ordersList.appendChild(itemDiv);
+                    });
+                });
+            }
+            if (!anyOrders) {
+                ordersList.innerHTML = '<em>No orders yet.</em>';
+            }
+        }
+    }
+    function openTableOrders(tableNum, grouped, tablePriorityMap) {
+        focusedTable = tableNum;
+        // Mark all orders for this table as seen
+        if (grouped[tableNum] && grouped[tableNum].length > 0) {
+            lastSeenOrderTime[tableNum] = grouped[tableNum][grouped[tableNum].length-1].time;
+        }
+        renderOrders(grouped, tablePriorityMap);
+        renderTables(grouped, tablePriorityMap);
+    }
+    async function fetchOrders() {
+        try {
+            const res = await fetch(`${SERVER_URL}/orders`);
+            const orders = await res.json();
+            // Detect new order
+            let isNewOrder = false;
+            if (Array.isArray(allOrders) && allOrders.length > 0) {
+                // Find the latest order time in previous and current
+                const prevTimes = allOrders.map(o => o.time);
+                const newTimes = orders.map(o => o.time);
+                const maxPrev = Math.max(...prevTimes);
+                const maxNew = Math.max(...newTimes);
+                if (maxNew > maxPrev) isNewOrder = true;
+            } else if (orders.length > 0 && allOrders.length === 0) {
+                isNewOrder = true;
+            }
+            allOrders = orders;
+            const grouped = groupOrdersByTable(orders);
+            const tablePriorityMap = getTablePriorityMap(orders);
+            renderTables(grouped, tablePriorityMap);
+            renderOrders(grouped, tablePriorityMap);
+            if (isNewOrder) {
+                const audio = document.getElementById('orderSound');
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(()=>{});
+                }
+            }
+        } catch (e) {
+            document.getElementById('ordersList').innerHTML = '<em>Could not load orders. Is the server running?</em>';
+            document.getElementById('tables').innerHTML = '';
+        }
+    }
+    // Use modal.js for modal logic
+    window.showOrderModal = window.showOrderModal;
+    window.closeOrderModal = window.closeOrderModal;
+    document.getElementById('closeOrderModal').onclick = closeOrderModal;
+    document.getElementById('orderModal').onclick = function(e) {
+        if (e.target === this) closeOrderModal();
+    };
+    // Poll for new orders every 3 seconds
+    async function startup() {
+        await loadMenuConfig();
+        fetchOrders();
+        setInterval(fetchOrders, 3000);
+    }
+    startup();
+    </script>
+    <style>
+        .order-modal-bg {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        .order-modal-bg.active { display: flex !important; }
+        .order-modal-content {
+            background: #fff;
+            padding: 32px 24px;
+            border-radius: 16px;
+            max-width: 400px;
+            width: 90vw;
+            box-shadow: 0 4px 24px #0002;
+            position: relative;
+        }
+        .order-modal-close {
+            position: absolute;
+            top: 12px; right: 16px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            font-size: 1.3em;
+            cursor: pointer;
+        }
+    </style>
+</body>
+</html>
